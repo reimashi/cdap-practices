@@ -31,3 +31,9 @@
 # Debug files
 *.dSYM/
 *.su
+
+# Netbeans
+build/
+dist/
+nbproject/
+.dep.inc
