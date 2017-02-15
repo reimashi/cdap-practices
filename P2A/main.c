@@ -12,8 +12,14 @@
 
 /* Rellena un vector con numeros aleatorios entre 0 y 9 */
 void fillVector(int* vector, int elements) {
-    time_t t;
-    srand((unsigned) time(&t));
+    static int randInit = 0;
+    
+    if (!randInit) {
+        time_t tim;
+        time(&tim);
+        srand((unsigned) tim);
+        randInit = 1;
+    }
 
     for (int x = 0; x < elements; ++x) {
         vector[x] = rand() % 10;
@@ -26,6 +32,13 @@ void printVector(int* vector, int elements) {
         printf(" %d", vector[x]);
     }
     printf("\n");
+}
+
+/* Imprime un vector por pantalla en vertical */
+void printVectorVertical(int* vector, int elements) {
+    for (int x = 0; x < elements; ++x) {
+        printf(" %d\n", vector[x]);
+    }
 }
 
 /* Punto de entrada del programa */
@@ -58,9 +71,13 @@ int main(int argc, char* argv[]) {
             
             for (int i = 0; i < L; ++i) fillVector(matrix[i], columnCount);
 
-            // Cremaos la matriz de resultados
+            // Cremaos la matriz de resultados de cada hilo
             int resultColumnCount = processCount - 1;
-            int resultMatrix[L][resultColumnCount];
+            int resultMatrix[resultColumnCount][L];
+            
+            // Creamos el vector de resultados global
+            int resultVector[L];
+            for (int i = 0; i < L; ++i) resultVector[i] = 0;
 
             // Mostramos la matriz por pantalla
             printf("El proceso %d está enviando la matriz a los %d procesos\n", selfRank, processCount - 1);
@@ -77,11 +94,22 @@ int main(int argc, char* argv[]) {
 
                 // Esperamos la recepcion del calculo
                 MPI_Recv(&resultMatrix[rank - 1], 1, tColumn, rank, 0, MPI_COMM_WORLD, &status);
+                
+                // Mostramos el resultado recibido de cada hilo por pantalla
+                printf("\nEl proceso %d recibió el resultado de las operaciones de %d: \n", selfRank, rank);
+                printVectorVertical(resultMatrix[rank - 1], L);
+            }
+            
+            // Por cada proceso que genera un resultado
+            for (int i = 0; i < L; i++) {
+                for (int rank = 1; rank < processCount; ++rank) {
+                    resultVector[i] += resultMatrix[rank - 1][i];
+                }
             }
 
             // Mostamos la matriz con el resultado por pantalla
-            printf("\nEl proceso %d recibió el resultado de las operaciones: \n", selfRank);
-            for (int i = 0; i < L; ++i) printVector(resultMatrix[i], resultColumnCount);
+            printf("\nEl proceso %d calculó el resultado final: \n", selfRank);
+            printVectorVertical(resultVector, L);
         }            
         // Si somos un proceso de calculo
         else {
@@ -95,7 +123,7 @@ int main(int argc, char* argv[]) {
             // Por cada columna
             for (int i = 0; i < L; i++) {
                 // Recibimos la fila
-                MPI_Recv(&matrix[0][i], 1, tColumn, 0, 0, MPI_COMM_WORLD, &status);
+                MPI_Recv(&matrix[i], 1, tColumn, 0, 0, MPI_COMM_WORLD, &status);
                 
                 // Sumamos todos sus elementos
                 for (int j = 0; j < L; j++) {
@@ -109,5 +137,5 @@ int main(int argc, char* argv[]) {
     }
 
     MPI_Finalize();
-    return 0;
+    exit(0);
 }
