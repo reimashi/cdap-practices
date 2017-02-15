@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <string.h>
-#include <mpi/mpi.h>
 #include <stdlib.h>
+#include <time.h>
+#include <mpi/mpi.h>
 
 /* Numero de procesos */
 #define NP 3
@@ -9,26 +10,22 @@
 /* Numero de filas */
 #define L 3
 
-/* Rellena una matriz con numeros aleatorios entre 0 y 9 */
-void fillMatrix(int* matrix, int columns, int rows) {
+/* Rellena un vector con numeros aleatorios entre 0 y 9 */
+void fillVector(int* vector, int elements) {
     time_t t;
     srand((unsigned) time(&t));
 
-    for (int x = 0; x < columns; ++x) {
-        for (int y = 0; y < rows; ++y) {
-            matrix[x][y] = rand() % 10;
-        }
+    for (int x = 0; x < elements; ++x) {
+        vector[x] = rand() % 10;
     }
 }
 
-/* Imprime una matriz por pantalla */
-void printMatrix(int* matrix, int columns, int rows) {
-    for (int x = 0; x < columns; ++x) {
-        for (int y = 0; y < rows; ++y) {
-            printf(" %d", matrix[x][y]);
-        }
-        printf("\n");
+/* Imprime un vector por pantalla */
+void printVector(int* vector, int elements) {
+    for (int x = 0; x < elements; ++x) {
+        printf(" %d", vector[x]);
     }
+    printf("\n");
 }
 
 /* Punto de entrada del programa */
@@ -57,22 +54,25 @@ int main(int argc, char* argv[]) {
         if (selfRank == 0) {
             // Creamos la matriz de origen
             int columnCount = L * (processCount - 1);
-            int matrix[columnCount][L];
-            fillMatrix(matrix, columnCount, L);
+            int matrix[L][columnCount];
+            
+            for (int i = 0; i < L; ++i) fillVector(matrix[i], columnCount);
 
             // Cremaos la matriz de resultados
             int resultColumnCount = processCount - 1;
-            int resultMatrix[resultColumnCount][L];
+            int resultMatrix[L][resultColumnCount];
 
             // Mostramos la matriz por pantalla
             printf("El proceso %d está enviando la matriz a los %d procesos\n", selfRank, processCount - 1);
-            printMatrix(matrix, columnCount, L);
-
+            for (int i = 0; i < L; ++i) printVector(matrix[i], columnCount);
+            
             // Por cada proceso de calculo
             for (int rank = 1; rank < processCount; ++rank) {
                 // Enviamos la matriz correspondiente
                 for (int i = 0; i < L; ++i) {
-                    MPI_Send(matrix[L * (rank - 1)][i], 1, tColumn, rank, 0, MPI_COMM_WORLD);
+                    int *toSend = matrix[i];
+                    toSend += L * (rank - 1);
+                    MPI_Send(toSend, 1, tColumn, rank, 0, MPI_COMM_WORLD);
                 }
 
                 // Esperamos la recepcion del calculo
@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
 
             // Mostamos la matriz con el resultado por pantalla
             printf("\nEl proceso %d recibió el resultado de las operaciones: \n", selfRank);
-            printMatrix(resultMatrix, resultColumnCount, L);
+            for (int i = 0; i < L; ++i) printVector(resultMatrix[i], resultColumnCount);
         }            
         // Si somos un proceso de calculo
         else {
@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
                 
                 // Sumamos todos sus elementos
                 for (int j = 0; j < L; j++) {
-                    resultMatrix[i] = matrix[j][i] + resultMatrix[i];
+                    resultMatrix[i] = matrix[i][j] + resultMatrix[i];
                 }
             }
             
@@ -109,4 +109,5 @@ int main(int argc, char* argv[]) {
     }
 
     MPI_Finalize();
+    return 0;
 }
